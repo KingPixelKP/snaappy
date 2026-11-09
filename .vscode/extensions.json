@@ -1,0 +1,8 @@
+{
+    "recommendations": [
+        "mkhl.direnv",
+        "llvm-vs-code-extensions.vscode-clangd",
+        "ms-vscode.cmake-tools",
+        "jnoortheen.nix-ide"
+    ]
+}

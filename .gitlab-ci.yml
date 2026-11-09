@@ -1,0 +1,36 @@
+stages:
+  - test
+
+default:
+  image: nixos/nix:2.28.3
+
+variables:
+  NIX_CONFIG: "experimental-features = nix-command flakes"
+
+# Configure, build and test in one job: the CMake cache holds /nix/store paths,
+# so build directories are not passed between jobs.
+.preset_template:
+  stage: test
+  script:
+    - |
+      nix develop --command bash -euo pipefail -c '
+        cmake --preset "${PRESET}"
+        cmake --build --preset "${PRESET}"
+        ctest --preset "${PRESET}"
+      '
+
+preset:debug:
+  extends: .preset_template
+  variables:
+    PRESET: debug
+
+preset:release:
+  extends: .preset_template
+  variables:
+    PRESET: release
+
+# Sandboxed build + ctest of the default and static packages.
+nix:flake-check:
+  stage: test
+  script:
+    - nix flake check -L

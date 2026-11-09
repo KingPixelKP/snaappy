@@ -1,0 +1,28 @@
+PROJECT_NAME           = "@PROJECT_NAME@"
+PROJECT_NUMBER         = "@PROJECT_VERSION@"
+
+OUTPUT_DIRECTORY       = "@DOXYGEN_OUTPUT_DIRECTORY@"
+
+INPUT                  = "@PROJECT_ROOT_DIR@"
+RECURSIVE              = YES
+
+USE_MDFILE_AS_MAINPAGE = "@PROJECT_ROOT_DIR@/README.md"
+MARKDOWN_SUPPORT       = YES
+
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+
+EXCLUDE                = \
+    @PROJECT_ROOT_DIR@/.build \
+    @PROJECT_ROOT_DIR@/docs \
+    @PROJECT_ROOT_DIR@/.git \
+    @PROJECT_ROOT_DIR@/cookiecutter
+
+FILE_PATTERNS          = *.h *.hpp *.hh *.hxx *.c *.cc *.cpp *.cxx *.md
+
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = YES

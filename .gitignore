@@ -1,0 +1,13 @@
+/.build/
+/.cache/
+/.direnv/
+/Testing/
+.DS_Store
+compile_commands.json
+__pycache__
+*.gcda
+*.gcno
+*.profraw
+*.profdata
+/result
+/result-*

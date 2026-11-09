@@ -1,0 +1,10 @@
+package(
+  NAME math
+  LIB
+  LIB_TYPE STATIC
+  TESTS
+  EXAMPLES
+  EXAMPLE_DEPS
+    fmt::fmt
+  BENCHMARKS
+)

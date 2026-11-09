@@ -1,0 +1,44 @@
+{
+  "nodes": {
+    "cookie-cmake": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1794187732,
+        "narHash": "sha256-zIdNRs4D5cHkyIreadE2uj+GeIFfw+tjuW0yyDCOu/M=",
+        "owner": "KingPixelKP",
+        "repo": "Cookie-Cmake",
+        "rev": "1820a09a5b24a5e684f1fd75a7f5d0aac3883a54",
+        "type": "github"
+      },
+      "original": {
+        "owner": "KingPixelKP",
+        "repo": "Cookie-Cmake",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1794042290,
+        "narHash": "sha256-ziZn2PvCJE5JEEpqTdxXwJpPB+L3YqoCpTAMCzyaP3U=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "f4a03c008967841f2a0b3cb7c436fc6fc31671f6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "cookie-cmake": "cookie-cmake",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
