@@ -1,31 +1,113 @@
 # snaappy
 
-A C++ snapshot testing library
+A C++ snapshot testing library, in the spirit of Rust's [insta](https://insta.rs).
 
-This project was generated in `hybrid` mode.
+Format a value, compare it with a snapshot file stored next to the test, and get a line diff when
+it changes.
 
-## Features
+```cpp
+// report_test.cpp
+#include <snaappy/snaappy.hpp>
 
-* `CMakePresets.json` with presets for:
-  * `Debug`
-  * `RelWithDebInfo`
-  * Address/Undefined Sanitizers (`ASan`/`UBSan`)
-  * `clang-tidy`
-* Reusable `libs/` layout for project libraries
-* Per-package `example/` and `benchmark/` discovery for optional example and benchmark binaries
-* Reusable `package()` and `workspace()` CMake helpers for component and workspace discovery
-* Nix flake that pins the toolchain, every library and the CMake helpers in `flake.lock`
-* Sandboxed `nix build` (shared) and `nix build .#static` (fully static, musl) packages
-* GoogleTest integration for unit testing
-* Optional `clang-tidy` and `cppcheck` support
-* `format` build target when `clang-format` is available
-* Extra `tsan` and `coverage` CMake presets for concurrency debugging and coverage runs
+TEST(Report, Totals) {
+  SNAAPPY_ASSERT_SNAPSHOT("totals", compute_totals());
+  SNAAPPY_ASSERT_SNAPSHOT("by_user", std::map<std::string, int>{{"a", 1}, {"b", 2}});
+}
+```
 
-* Optional Doxygen documentation support
+## Usage
 
+Link the library:
 
-* Nix-based GitHub Actions and GitLab CI templates
+```cmake
+target_link_libraries(my_tests PRIVATE snaappy::core)
+```
 
+`SNAAPPY_ASSERT_SNAPSHOT(name, value)` formats `value` with [`fmt`](https://github.com/fmtlib/fmt),
+so any type with a `fmt::formatter` works, including ranges and maps. The macro is variadic, so
+values containing commas need no extra parentheses.
+
+Each snapshot is stored as `snapshots/<test file stem>__<name>.snap`, next to the test source:
+
+```text
+---
+source: report_test.cpp
+expression: compute_totals()
+---
+<formatted value>
+```
+
+Only the part after the header is compared. Windows line endings (CRLF) are treated as plain
+newlines. Names may contain only letters, digits, `_`, `-` and `.`, and must not start with `.`.
+
+The assertion throws `snaappy::SnapshotError` on failure, so it works with any test framework.
+GoogleTest reports the exception as a test failure, with the message.
+
+### Reviewing changes
+
+| Situation        | Default                                           | `SNAAPPY_UPDATE=always`    |
+| ---------------- | ------------------------------------------------- | -------------------------- |
+| Snapshot matches | pass; deletes any stale `.snap.new`               | same                       |
+| No `.snap` file  | writes `.snap.new`, fails                         | writes `.snap`, passes     |
+| Snapshot differs | writes `.snap.new`, fails with a `-old +new` diff | overwrites `.snap`, passes |
+
+To accept a change, rename the `.snap.new` file to `.snap`, or rerun with `SNAAPPY_UPDATE=always`.
+`SNAAPPY_UPDATE=new` is the same as leaving it unset; any other value is an error. Commit the `.snap`
+files. `*.snap.new` is ignored by git.
+
+```text
+snapshot .../snapshots/report_test__by_user.snap does not match (.../report_test.cpp:12)
+-old +new:
+-{"a": 1, "b": 2}
++{"a": 1, "b": 3}
+```
+
+### Workspace root
+
+Snapshots are found through the source path the compiler reports (`std::source_location`):
+
+- An absolute path is used as is. CMake with Ninja and the Nix builds produce these.
+- A relative path, from `-ffile-prefix-map`, Bazel and similar, resolves against the
+  `SNAAPPY_WORKSPACE_ROOT` environment variable. If it is unset, the assertion fails and names it.
+
+When `SNAAPPY_WORKSPACE_ROOT` is set, it is also used as the base for relative paths. Combined with
+`-ffile-prefix-map=${CMAKE_SOURCE_DIR}/=`, this lets test binaries run from a different checkout or
+machine.
+
+### API
+
+Besides the macro, `snaappy/snaappy.hpp` exposes:
+
+- `check_snapshot(dir, name, snapshot, mode)`: compare and write files without throwing; returns
+  the status, the `.snap` path and the diff.
+- `diff_lines(old_text, new_text)`: the line diff used in failure messages.
+- `update_mode_from_env()`: reads `SNAAPPY_UPDATE`.
+
+### Planned
+
+- `snaappy-review` CLI to accept or reject `.snap.new` files one by one, like `cargo insta review`.
+- Inline snapshots, redactions, and structured formats (JSON/YAML).
+
+## Project tooling
+
+This project was generated from a `hybrid` mode template. It includes:
+
+- `CMakePresets.json` with presets for:
+  - `Debug`
+  - `RelWithDebInfo`
+  - Address/Undefined Sanitizers (`ASan`/`UBSan`)
+  - `clang-tidy`
+- Reusable `libs/` layout for project libraries
+- Per-package `example/` and `benchmark/` discovery for optional example and benchmark binaries
+- Reusable `package()` and `workspace()` CMake helpers for component and workspace discovery
+- Nix flake that pins the toolchain, every library and the CMake helpers in `flake.lock`
+- Sandboxed `nix build` (shared) and `nix build .#static` (fully static, musl) packages
+- GoogleTest integration for unit testing
+- Optional `clang-tidy` and `cppcheck` support
+- `format` build target when `clang-format` is available
+- Extra `tsan` and `coverage` CMake presets for concurrency debugging and coverage runs
+- Optional Doxygen documentation support
+- Nix-based GitHub Actions and GitLab CI templates
 
 ## Requirements
 
@@ -68,11 +150,8 @@ the dev shell, each command runs through `nix develop` for you:
 make            # list targets
 make build      # configure (first time) and build the debug preset
 make test       # build and run the tests
-make test FILTER=Vec              # only tests whose name matches
+make test FILTER=CheckSnapshot    # only tests whose name matches
 make test PRESET=asan
-make run        # build and run the main executable
-make run ARGS="--help"            # pass arguments
-make run EXAMPLE=vector_example   # run an example (or BIN=<name> for bin/ executables)
 make bench      # release build with benchmarks, runs them all (BENCH=<name> for one)
 make coverage   # tests with coverage, HTML report + summary (gcovr)
 make add DEP=spdlog               # add a library, like `cargo add`
@@ -113,7 +192,7 @@ environment into the editor, so clangd and CMake Tools work without launching fr
 On first entry it also runs `make configure` (the debug preset), so `compile_commands.json` is linked into the
 project root for clangd. Editors with a direnv extension pick up the same environment.
 
-The default project uses [`fmt`](https://github.com/fmtlib/fmt), plus GoogleTest and Google Benchmark
+The library uses [`fmt`](https://github.com/fmtlib/fmt), plus GoogleTest and Google Benchmark
 when tests and benchmarks are enabled. Examples and benchmarks are discovered from each package's
 `example/` and `benchmark/` directories.
 
@@ -166,19 +245,19 @@ Then link a target from `package(...)`, for example `DEPS spdlog::spdlog`.
 
 Common libraries:
 
-| nixpkgs attribute | `find_package` name | Target |
-| --- | --- | --- |
-| `fmt` | `fmt` | `fmt::fmt` |
-| `gtest` | `GTest` | `GTest::gtest_main` |
-| `gbenchmark` | `benchmark` | `benchmark::benchmark` |
-| `spdlog` | `spdlog` | `spdlog::spdlog` |
-| `abseil-cpp` | `absl` | `absl::<component>` |
-| `cli11` | `CLI11` | `CLI11::CLI11` |
-| `entt` | `EnTT` | `EnTT::EnTT` |
-| `nlohmann_json` | `nlohmann_json` | `nlohmann_json::nlohmann_json` |
-| `pugixml` | `pugixml` | `pugixml::pugixml` |
-| `raylib` | `raylib` | `raylib` |
-| `yaml-cpp` | `yaml-cpp` | `yaml-cpp::yaml-cpp` |
+| nixpkgs attribute | `find_package` name | Target                         |
+| ----------------- | ------------------- | ------------------------------ |
+| `fmt`             | `fmt`               | `fmt::fmt`                     |
+| `gtest`           | `GTest`             | `GTest::gtest_main`            |
+| `gbenchmark`      | `benchmark`         | `benchmark::benchmark`         |
+| `spdlog`          | `spdlog`            | `spdlog::spdlog`               |
+| `abseil-cpp`      | `absl`              | `absl::<component>`            |
+| `cli11`           | `CLI11`             | `CLI11::CLI11`                 |
+| `entt`            | `EnTT`              | `EnTT::EnTT`                   |
+| `nlohmann_json`   | `nlohmann_json`     | `nlohmann_json::nlohmann_json` |
+| `pugixml`         | `pugixml`           | `pugixml::pugixml`             |
+| `raylib`          | `raylib`            | `raylib`                       |
+| `yaml-cpp`        | `yaml-cpp`          | `yaml-cpp::yaml-cpp`           |
 
 Library versions follow the nixpkgs revision in `flake.lock`. To pin a specific version, override
 the package in [`flake.nix`](./flake.nix) with `overrideAttrs` and a `fetchFromGitHub` source.
@@ -186,7 +265,7 @@ the package in [`flake.nix`](./flake.nix) with `overrideAttrs` and a `fetchFromG
 ## Project Layout
 
 To add a new library package, create a new folder under [`libs/`](./libs/) with a minimal
-[`CMakeLists.txt`](./libs/math/CMakeLists.txt) that calls `package(...)`, then add `src/`,
+[`CMakeLists.txt`](./libs/core/CMakeLists.txt) that calls `package(...)`, then add `src/`,
 `include/`, `test/`, `example/`, or `benchmark/` directories as needed.
 
 If a package needs runtime assets, add a sibling `data/` directory under `bin/`, `test/`,
@@ -223,7 +302,6 @@ When `gcovr` is available, the `coverage-report` target writes HTML and XML
 reports under `.build/coverage/coverage/`. `make coverage` does all of the above in one step, starts
 from fresh counters, and prints the line and branch coverage summary.
 
-
 ## Documentation
 
 Build the Doxygen docs with:
@@ -233,8 +311,6 @@ make docs       # or: cmake --build --preset debug --target snaappy_docs
 ```
 
 The HTML output lands in `.build/debug/docs/html/index.html`.
-
-
 
 ## Install And Package Export
 
@@ -246,16 +322,12 @@ cmake --build --preset release
 cmake --install .build/release --prefix ./install
 ```
 
-
 Consumers can then use:
 
 ```cmake
 find_package(snaappy CONFIG REQUIRED)
-target_link_libraries(my_target PRIVATE snaappy::math)
+target_link_libraries(my_target PRIVATE snaappy::core)
 ```
-
-
-
 
 ## Safety Checks
 
@@ -299,13 +371,11 @@ sed -i 's/cpptemplate/myproject/g; s/CPPTEMPLATE/MYPROJECT/g' CMakeLists.txt CMa
 
 ## Authors
 
-* KingPixelKP
-
+- KingPixelKP
 
 ## License
 
 See [`LICENSE`](./LICENSE).
-
 
 ## Acknowledgements
 
@@ -313,8 +383,8 @@ This project was generated from the **CppCookieCutter**.
 
 The template repository contains updates, additional generators, and documentation:
 
-* <https://github.com/KingPixelKP/CppCookieCutter.git>
+- <https://github.com/KingPixelKP/CppCookieCutter.git>
 
 The CMake function directory used to provide versioned CMake helpers is:
 
-* <https://github.com/KingPixelKP/Cookie-Cmake.git>
+- <https://github.com/KingPixelKP/Cookie-Cmake.git>

@@ -109,18 +109,6 @@ workspace(
 
 
 
-# Main Executable
-package(
-  NAME ${PROJECT_NAME}
-  BIN
-  BIN_DEPS
-  
-  math
-  
-  fmt::fmt
-)
-
-
 if(${PROJECT_NAME_UPPER}_INSTALL)
   set(_package_config_install_dir "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
   set(_project_install_component "${PROJECT_NAME}")
